@@ -1,0 +1,182 @@
+---
+title: "2016 and 2020 Election Analysis: Understanding Voting Changes"
+author: "Adam Meyer"
+date: "2023-08-08"
+output: html_document
+---
+
+
+# Load Libraries
+
+```{r}
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(patchwork)
+```
+
+# Import Dataset
+
+The datasets are from https://www.kaggle.com/datasets/etsc9287/2020-general-election-polls?resource=download
+
+```{r}
+county_statistics <- read_csv("C:/Users/apmey/OneDrive/Desktop/Election Data/county_statistics.csv")
+
+#trump_biden_polls <- read_csv("C:/Users/apmey/OneDrive/Desktop/Election Data/trump_biden_polls.csv")
+
+#trump_clinton_polls <- read_csv("C:/Users/apmey/OneDrive/Desktop/Election Data/trump_clinton_polls.csv")
+
+```
+
+
+# Data Profiling and Exploratory Data Analysis
+
+```{r}
+head(county_statistics)
+```
+
+I can remove the first column "..1" becuase it serves no statitical purpose
+
+```{r}
+county_statistics = county_statistics[, -1]
+```
+
+### Information on variables
+
+NOTE: This is important for creating new variables from existing varibales
+
+```{r}
+str(county_statistics)
+```
+### Checking for missing values
+
+```{r}
+missing_counts <- colSums(is.na(county_statistics))
+
+print(missing_counts)
+```
+
+Sub dataset with rows that contain missing data
+
+```{r}
+NA_df <- county_statistics[!complete.cases(county_statistics), ]
+
+print(NA_df)
+```
+
+### Conclusion: There are a lot of counties that don't have data from the 2016 election or the 2020 election. Since we care looking at the change over the two time periods, I will drop the missing data because I can't make any conclusion about how they changed.
+
+```{r}
+county_statistics <- na.omit(county_statistics)
+```
+
+```{r}
+head(county_statistics)
+```
+
+## Understanding Voting Changes
+
+
+Creating Maps
+
+```{r}
+us_2020_map <- ggplot(county_statistics, aes(x = long, y = lat, size = total_votes20, color = percentage20_Joe_Biden)) +
+  geom_point(shape = 16) +
+  scale_color_distiller(palette = "RdBu", direction = 1) +
+  labs(title = "The 2020 Election (Red = More Republican; Blue = More Democratic)",
+       x = "Longitude", y = "Latitude",
+       size = "# of Votes", color = "Biden's Percentage") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+us_2016_map <- ggplot(county_statistics, aes(x = long, y = lat, size = total_votes16, color = percentage16_Donald_Trump)) +
+  geom_point(shape = 16) +
+  scale_color_distiller(palette = "RdBu", direction = -1) +
+  labs(title = "The 2016 Election (Red = More Republican; Blue = More Democratic)",
+       x = "Longitude", y = "Latitude",
+       size = "# of Votes", color = "Trump's Percentage") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+
+```{r}
+us_2020_map
+```
+
+```{r}
+us_2016_map
+```
+
+Based on the two maps, we see differences in voting percentages in certain counties. Additionally, there is also change in the value for the number of vote scale, meaning there seems to be an increase in amount of voters in some county from 2016 to 2020
+
+First I want to see the map without Hawaii included, since it changes the scales of the longitute and latitude.
+
+```{r}
+df_mainland <- county_statistics[!(county_statistics$state %in% c("AK", "HI")), ]
+
+# Create the scatterplot with custom legend labels
+ml_2020_map <- ggplot(df_mainland, aes(x = long, y = lat, size = total_votes20, color = percentage20_Joe_Biden)) +
+  geom_point(shape = 16) +
+  scale_color_distiller(palette = "RdBu", direction = 1) +
+  labs(title = "The 2020 Election (Red = More Republican; Blue = More Democratic)",
+       x = "Longitude", y = "Latitude",
+       size = "# of votes", color = "Biden's Percentage") +  # Customizing the legend labels
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+ml_2016_map <- ggplot(df_mainland, aes(x = long, y = lat, size = total_votes16, color = percentage16_Donald_Trump)) +
+  geom_point(shape = 16) +
+  scale_color_distiller(palette = "RdBu", direction = -1) +
+  labs(title = "The 2016 Election (Red = More Republican; Blue = More Democratic)",
+       x = "Longitude", y = "Latitude",
+       size = "# of Votes", color = "Trump's Percentage") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+```{r}
+ml_2020_map
+```
+
+```{r}
+ml_2016_map
+```
+
+Based on the closer view, the Utah area seemed to become increasingly in favor of Trump in the 2020 election. But it is harder to see increases in democratic favor. To see these changes we must create some new varibales.
+
+```{r}
+df_mainland <- df_mainland %>%  
+  mutate(trump_pct_change = percentage20_Donald_Trump - percentage16_Donald_Trump) %>%
+  mutate(dem_pct_change = percentage20_Joe_Biden - percentage16_Hillary_Clinton)
+
+```
+
+```{r}
+dem_change_map <- ggplot(df_mainland, aes(x = long, y = lat, color = dem_pct_change)) +
+  geom_point(shape = 16) +
+  scale_color_distiller(palette = "RdBu", direction = 1) +
+  labs(title = "Voting Shifts From the 2016 Election to 2020 Election",
+       x = "Longitude", y = "Latitude",
+       color = "Democratic % Change") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+dem_change_map
+```
+
+
+```{r}
+trump_change_map <- ggplot(df_mainland, aes(x = long, y = lat, color = trump_pct_change)) +
+  geom_point(shape = 16) +
+  scale_color_distiller(palette = "RdBu", direction = -1) +
+  labs(title = "Voting Shifts From the 2016 Election to 2020 Election",
+       x = "Longitude", y = "Latitude",
+       color = "Trump % Change") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+trump_change_map
+```
+
+Based on these two maps, Trump gained support on the Southern Boarder of Texas from Demacrats, while he gain voters in the Utah/Idaho/Nevada areas from non Repulican/Democrat voters, because Biden got a similar percentage than Clinton had. 
